@@ -12,14 +12,9 @@ import edu.wpi.first.wpilibj.TimedRobot;
 
 import frc.robot.subsystems.Drivetrain;
 
-import java.util.Arrays;
+import com.stuypulse.stuylib.streams.filters.*;
 
-import com.stuypulse.stuylib.math.stream.*;
-import com.stuypulse.stuylib.math.stream.filter.*;
-
-import com.stuypulse.stuylib.input.*;
-import com.stuypulse.stuylib.input.gamepads.*;
-
+import frc.robot.Gamepad;
 
 /**
  * The VM is configured to automatically run this class, and to call the
@@ -31,26 +26,12 @@ import com.stuypulse.stuylib.input.gamepads.*;
 
 public class Robot extends TimedRobot {
 
-    public static NetKeyGamepad gamepad = new NetKeyGamepad(0);
+    public static Gamepad gamepad = new Gamepad(0);
     public static Drivetrain drivetrain = new Drivetrain();
     public static Compressor compressor = new Compressor();
-
-    public static InputStream rawSpeed = () -> gamepad.getLeftY();
-    public static InputStream rawAngle = () -> gamepad.getLeftX();
-
-    public static InputStream speed = new FilteredInputStream(
-        rawSpeed, new StreamFilterGroup(Arrays.asList(
-            new BasicFilters.Circular(),
-            new WeightedMovingAverage(64)
-        )
-    ));
-
-    public static InputStream angle = new FilteredInputStream(
-        rawAngle, new StreamFilterGroup(Arrays.asList(
-            new BasicFilters.Circular(),
-            new WeightedMovingAverage(64)
-        )
-    ));
+    
+    public static IStreamFilter mSpeedNerf = new RollingAverage(128);
+    public static IStreamFilter mAngleNerf = new RollingAverage(128);
 
     /**
      * This function is run when the robot is first started up and should be used
@@ -120,28 +101,29 @@ public class Robot extends TimedRobot {
 
     }
 
+    public void updateDrivetrain(double speed, double turn) {
+        double smooth_speed = mSpeedNerf.get(speed);
+        double smooth_turn = mAngleNerf.get(turn);
+        //        drivetrain.drive.arcadeDrive(smooth_speed, smooth_turn, false);
+        
+        drivetrain.drive.tankDrive(smooth_speed, smooth_speed);
+    }
+
     /**
      * This function is called periodically during operator control.
      */
     @Override
     public void teleopPeriodic() {
-        if(gamepad.getRawKey("c") != compressor.enabled()) {
-            if(gamepad.getRawKey("c")) {
-                compressor.start();
-            } else {
-                compressor.stop();
-            }
-        }
-    
-        double speedval = speed.get();
-        double angleval = angle.get();
-        
-        if(gamepad.getRawKey("space")) {
-            speedval = rawSpeed.get();
-            angleval = rawAngle.get();
-        } 
+        // Change these variables to 
+        double speed = 0;
+        double turn = 0;
 
-        drivetrain.curvatureDrive(speedval * 0.6, angleval * 0.8, true);
+        // TODO: write pid code
+        speed = gamepad.getLeftY();
+        turn = gamepad.getLeftX();
+
+        // Push values to drivetrain
+        updateDrivetrain(speed, turn);
     }
 
     /**
